@@ -40,7 +40,7 @@ begin
     currency, observed_at, source_type, source_url, notes
   ) values (
     auth.uid(), p_product_id, p_retailer_id, p_store_branch_id, p_observed_price, p_regular_price,
-    currency, coalesce(p_observed_at, now()), 'community', p_source_url, p_notes
+    p_currency, coalesce(p_observed_at, now()), 'community', p_source_url, p_notes
   ) returning id into v_submission_id;
 
   insert into public.community_price_evidence (
