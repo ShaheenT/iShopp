@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     p_evidence_source_hash: input.evidence.sourceHash ?? null,
     p_evidence_extracted_text: input.evidence.extractedText ?? null,
     p_evidence_extracted_data: input.evidence.extractedData ?? {},
+    p_idempotency_key: input.idempotencyKey,
   });
 
   if (error) {
@@ -42,5 +43,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "community_price_submission_failed" }, { status: 400 });
   }
 
-  return NextResponse.json({ data: data?.[0] ?? null }, { status: 201 });
+  const existing = data?.[0] ?? null;
+  return NextResponse.json({ data: existing, meta: { idempotent: true } }, { status: 201 });
 }
