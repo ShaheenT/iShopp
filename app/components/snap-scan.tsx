@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import PriceComparison from "./price-comparison";
+
 type Product = {
   id: string;
   name: string;
@@ -237,6 +239,8 @@ export default function SnapScan() {
             <div><strong>Contribution received</strong><p>Your evidence is stored privately and the price is now pending verification. Verified data will feed future comparisons and savings.</p></div>
           </div>
         )}
+
+        {product && <PriceComparison product={product} />}
       </div>
 
       <div className="scan-frame" aria-hidden="true">
