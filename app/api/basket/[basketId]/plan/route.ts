@@ -63,21 +63,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
   const result = optimizeFulfilment(items, offers, rules, parsedBody.data);
   if (!result) return NextResponse.json({ error: "basket_not_fully_available" }, { status: 409 });
 
-  const planItems = result.allocations.map((item) => ({
-    productId: item.productId,
-    retailerId: item.retailerId,
-    branchId: item.branchId ?? null,
-    specialId: item.specialId,
-    fulfilmentRuleId: rules.find((rule) => rule.retailerId === item.retailerId && (rule.branchId === item.branchId || rule.branchId == null))?.fulfilmentRuleId ?? null,
-    quantity: item.quantity,
-    unitPrice: item.unitPrice,
-    lineTotal: item.lineTotal,
-    currency: item.currency,
-  }));
+  const planItems = result.allocations.map((item) => {
+    const exactRule = rules.find((rule) => rule.retailerId === item.retailerId && rule.branchId === item.branchId);
+    const fallbackRule = rules.find((rule) => rule.retailerId === item.retailerId && rule.branchId == null);
+    return {
+      productId: item.productId,
+      retailerId: item.retailerId,
+      branchId: item.branchId ?? null,
+      specialId: item.specialId,
+      fulfilmentRuleId: exactRule?.fulfilmentRuleId ?? fallbackRule?.fulfilmentRuleId ?? null,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+      currency: item.currency,
+    };
+  });
 
-  if (planItems.some((item) => !item.fulfilmentRuleId)) {
-    return NextResponse.json({ error: "verified_fulfilment_rule_missing" }, { status: 409 });
-  }
+  if (planItems.some((item) => !item.fulfilmentRuleId)) return NextResponse.json({ error: "verified_fulfilment_rule_missing" }, { status: 409 });
 
   const { data: plan, error: planError } = await supabase.rpc("create_verified_shopping_plan", {
     p_basket_id: basketId,
