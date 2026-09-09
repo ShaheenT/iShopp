@@ -6,22 +6,25 @@ const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 test.describe("backend migration contracts", () => {
-  test("trust migration creates verifier access before verifier RPCs", () => {
-    const sql = read("supabase/migrations/0015_trust_rewards.sql");
-    expect(sql.indexOf("create table public.community_price_verifiers")).toBeGreaterThan(-1);
-    expect(sql.indexOf("create table public.community_price_verifiers")).toBeLessThan(sql.indexOf("create or replace function public.verify_community_price"));
-    expect(sql).toContain("revoke all on table public.community_price_verifiers from anon, authenticated");
-    expect(sql).toContain("revoke all on function public.recalculate_community_trust(uuid) from public");
-    expect(sql).not.toContain("grant execute on function public.recalculate_community_trust(uuid) to authenticated");
+  test("community verifier access is created once before trust RPCs", () => {
+    const intelligence = read("supabase/migrations/0014_community_price_intelligence.sql");
+    const trust = read("supabase/migrations/0015_trust_rewards.sql");
+    expect(intelligence).toContain("create table public.community_price_verifiers");
+    expect(intelligence).toContain("revoke all on table public.community_price_verifiers from anon, authenticated");
+    expect(trust).not.toContain("create table public.community_price_verifiers");
+    expect(trust).toContain("public.community_price_verifiers");
+    expect(trust.indexOf("create or replace function public.verify_community_price")).toBeGreaterThan(-1);
+    expect(trust).toContain("revoke all on function public.recalculate_community_trust(uuid) from public");
+    expect(trust).not.toContain("grant execute on function public.recalculate_community_trust(uuid) to authenticated");
   });
 
   test("action integrity validates branch-specific commercial facts", () => {
     const sql = read("supabase/migrations/0018_action_integrity.sql");
     expect(sql).toContain("create or replace function public.create_verified_shopping_plan");
-    expect(sql).toContain("line total");
-    expect(sql).toContain("minimum order");
+    expect(sql).toContain("line total mismatch");
+    expect(sql).toContain("minimum order constraint not met");
     expect(sql).toContain("currency");
-    expect(sql).toContain("verified");
+    expect(sql).toContain("store_branches sb");
   });
 
   test("anomaly detection is advisory and verifier-gated", () => {
