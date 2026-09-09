@@ -1,0 +1,1 @@
+Foundation branch is ready for review and integration. Next work should proceed from this branch lineage rather than from the legacy prototype.
