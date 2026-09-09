@@ -26,9 +26,6 @@ create table public.community_price_submissions (
   constraint community_price_verified_at_check check (verification_status <> 'verified' or verified_at is not null)
 );
 
-create unique index store_branches_id_retailer_unique_community
-  on public.store_branches(id, retailer_id);
-
 alter table public.community_price_submissions
   add constraint community_price_branch_retailer_fk
   foreign key (store_branch_id, retailer_id)
@@ -79,7 +76,6 @@ alter table public.community_price_submissions enable row level security;
 alter table public.community_price_evidence enable row level security;
 alter table public.community_price_verification_events enable row level security;
 
--- Users may see their own submissions; no direct writes are exposed.
 create policy community_price_owner_select
 on public.community_price_submissions
 for select to authenticated
