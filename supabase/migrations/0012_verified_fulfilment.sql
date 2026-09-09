@@ -139,7 +139,12 @@ begin
     select 1 from public.fulfilment_rules fr
     where fr.id = old.fulfilment_rule_id
       and fr.verification_status = 'verified'
-  ) and not exists (
+  )
+  and (
+    tg_op = 'DELETE'
+    or new.status not in ('captured', 'processed')
+  )
+  and not exists (
     select 1 from public.fulfilment_evidence fe
     where fe.fulfilment_rule_id = old.fulfilment_rule_id
       and fe.id <> old.id
@@ -147,7 +152,7 @@ begin
   ) then
     raise exception 'cannot remove the last usable evidence from a verified fulfilment rule';
   end if;
-  return old;
+  return case when tg_op = 'DELETE' then old else new end;
 end;
 $$;
 
