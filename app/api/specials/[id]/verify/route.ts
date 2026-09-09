@@ -55,86 +55,38 @@ export async function POST(
     );
   }
 
-  const admin = createAdminClient();
-  const { data: special, error: specialError } = await admin
-    .from("specials")
-    .select("id,verification_status")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (specialError) {
-    console.error("verification special lookup failed", specialError);
-    return NextResponse.json({ error: "special_unavailable" }, { status: 500 });
-  }
-  if (!special) {
-    return NextResponse.json({ error: "special_not_found" }, { status: 404 });
-  }
-  if (special.verification_status === "verified") {
-    return NextResponse.json({ error: "special_already_verified" }, { status: 409 });
-  }
-
   const { action, evidenceId, reason } = parsed.data;
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("verify_special", {
+    p_special_id: id,
+    p_action: action,
+    p_evidence_id: evidenceId ?? null,
+    p_actor_user_id: actor.id,
+    p_reason: reason ?? null,
+  });
 
-  if (action === "verified") {
-    if (!evidenceId) {
-      return NextResponse.json({ error: "evidence_required_for_verification" }, { status: 422 });
-    }
-
-    const { data: evidence, error: evidenceError } = await admin
-      .from("special_evidence")
-      .select("id,special_id,status")
-      .eq("id", evidenceId)
-      .eq("special_id", id)
-      .maybeSingle();
-
-    if (evidenceError) {
-      console.error("verification evidence lookup failed", evidenceError);
-      return NextResponse.json({ error: "evidence_unavailable" }, { status: 500 });
-    }
-    if (!evidence) {
-      return NextResponse.json({ error: "evidence_not_found" }, { status: 404 });
-    }
-    if (evidence.status === "failed") {
-      return NextResponse.json({ error: "invalid_evidence" }, { status: 422 });
-    }
+  if (error) {
+    console.error("special verification failed", error);
+    const statusByCode: Record<string, number> = {
+      P0002: 404,
+      P0003: 409,
+      P0004: 422,
+      P0005: 404,
+      P0006: 422,
+    };
+    const status = statusByCode[error.code ?? ""] ?? 500;
+    const errorByCode: Record<string, string> = {
+      P0002: "special_not_found",
+      P0003: "special_already_verified",
+      P0004: "evidence_required_for_verification",
+      P0005: "evidence_not_found",
+      P0006: "invalid_evidence",
+    };
+    return NextResponse.json(
+      { error: errorByCode[error.code ?? ""] ?? "verification_failed" },
+      { status },
+    );
   }
 
-  const nextStatus = action === "verified" ? "verified" : "rejected";
-  const { data: updated, error: updateError } = await admin
-    .from("specials")
-    .update({
-      verification_status: nextStatus,
-      verified_at: action === "verified" ? new Date().toISOString() : null,
-    })
-    .eq("id", id)
-    .eq("verification_status", special.verification_status)
-    .select("id,verification_status,verified_at,updated_at")
-    .maybeSingle();
-
-  if (updateError) {
-    console.error("special verification update failed", updateError);
-    return NextResponse.json({ error: "verification_failed" }, { status: 500 });
-  }
-  if (!updated) {
-    return NextResponse.json({ error: "verification_conflict" }, { status: 409 });
-  }
-
-  const { error: auditError } = await admin
-    .from("special_verification_events")
-    .insert({
-      special_id: id,
-      action,
-      previous_status: special.verification_status,
-      new_status: nextStatus,
-      actor_user_id: actor.id,
-      reason: reason ?? null,
-      evidence_id: evidenceId ?? null,
-    });
-
-  if (auditError) {
-    console.error("verification audit failed", auditError);
-    return NextResponse.json({ error: "verification_audit_failed" }, { status: 500 });
-  }
-
-  return NextResponse.json({ data: updated });
+  return NextResponse.json({ data });
 }
