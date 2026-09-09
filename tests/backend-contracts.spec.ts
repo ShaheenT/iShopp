@@ -66,6 +66,16 @@ test.describe("backend migration contracts", () => {
     expect(sql).toContain("create or replace function public.create_verified_shopping_plan");
   });
 
+  test("community evidence storage is private and user-scoped", () => {
+    const sql = read("supabase/migrations/0024_community_price_evidence_storage.sql");
+    expect(sql).toContain("community-price-evidence");
+    expect(sql).toContain("public, false");
+    expect(sql).toContain("storage.foldername(name)");
+    expect(sql).toContain("auth.uid()::text");
+    expect(sql).toContain("for insert");
+    expect(sql).toContain("for select");
+  });
+
   test("anomaly detection is advisory and verifier-gated", () => {
     const sql = read("supabase/migrations/0019_community_anomaly_detection.sql");
     expect(sql).toContain("Anomaly detection is a review signal only");
@@ -92,6 +102,15 @@ test.describe("API contracts", () => {
     expect(verify).toContain('"verify_community_price"');
     expect(reject).toContain('"reject_community_price"');
     expect(risk).toContain('"get_community_price_risk"');
+  });
+
+  test("community evidence upload requires authentication and limits image input", () => {
+    const route = read("app/api/community/prices/evidence/route.ts");
+    expect(route).toContain("supabase.auth.getUser()");
+    expect(route).toContain("401");
+    expect(route).toContain("8 * 1024 * 1024");
+    expect(route).toContain("community-price-evidence");
+    expect(route).toContain("evidence_file_required");
   });
 
   test("fulfilment optimization does not accept commercial truth from clients", () => {
