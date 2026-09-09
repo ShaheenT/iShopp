@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { test, expect } from "@playwright/test";
 import { optimizeSavings } from "@/lib/basket/savings-optimization";
 
 const items = [
@@ -13,14 +13,14 @@ const offers = [
   { productId: "bread", retailerId: "b", retailerName: "Bravo", branchId: "b1", branchName: "Bravo CBD", specialId: "b2", unitPrice: 30, currency: "ZAR" },
 ];
 
-describe("optimizeSavings", () => {
-  it("chooses the split basket when store visits are free", () => {
+test.describe("optimizeSavings", () => {
+  test("chooses the split basket when store visits are free", () => {
     const result = optimizeSavings(items, offers, { maxStores: 2, storeVisitCost: 0 });
     expect(result?.totalProductCost).toBe(50);
     expect(result?.retailerCount).toBe(2);
   });
 
-  it("chooses one retailer when the extra visit costs more than the saving", () => {
+  test("chooses one retailer when the extra visit costs more than the saving", () => {
     const result = optimizeSavings(items, offers, { maxStores: 2, storeVisitCost: 10 });
     expect(result?.totalProductCost).toBe(60);
     expect(result?.totalLandedCost).toBe(70);
@@ -28,13 +28,13 @@ describe("optimizeSavings", () => {
     expect(result?.retailerSubtotals[0].retailerName).toBe("Alpha");
   });
 
-  it("respects maxStores", () => {
+  test("respects maxStores", () => {
     const result = optimizeSavings(items, offers, { maxStores: 1 });
     expect(result?.retailerCount).toBe(1);
     expect(result?.totalProductCost).toBe(60);
   });
 
-  it("returns null for an incomplete basket", () => {
+  test("returns null for an incomplete basket", () => {
     const result = optimizeSavings([...items, { productId: "eggs", quantity: 1 }], offers);
     expect(result).toBeNull();
   });
