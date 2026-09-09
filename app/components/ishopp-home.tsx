@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import SnapScan from "./snap-scan";
 
 const steps = [
   { number: "01", title: "Snap / Scan", text: "Capture a product, shelf label or special while you shop." },
@@ -34,13 +35,9 @@ export default function IShoppHome() {
         <div className="hero-copy">
           <p className="eyebrow">COMMUNITY RETAIL INTELLIGENCE</p>
           <h1>Share more.<br /><em>Save more.</em></h1>
-          <p className="hero-text">
-            Snap a product or price. Share it with the community. iShopp turns verified shopping data into better buying decisions.
-          </p>
+          <p className="hero-text">Snap a product or price. Share it with the community. iShopp turns verified shopping data into better buying decisions.</p>
           <div className="hero-actions">
-            <button className="primary-button" onClick={() => inputRef.current?.click()}>
-              <span className="button-icon">＋</span> Snap / Scan
-            </button>
+            <button className="primary-button" onClick={() => inputRef.current?.click()}><span className="button-icon">＋</span> Snap / Scan</button>
             <a className="secondary-button" href="#how-it-works">See how it works</a>
           </div>
           <p className="trust-line"><span className="pulse" /> Verified community intelligence · Built for real savings</p>
@@ -55,18 +52,13 @@ export default function IShoppHome() {
             <p>Capture a product, shelf label or special. Your evidence becomes the starting point for community price intelligence.</p>
             <button className="capture-button" onClick={() => inputRef.current?.click()}>Capture product</button>
             {captureName && <p className="capture-status">Ready: {captureName}</p>}
-            <input
-              ref={inputRef}
-              className="visually-hidden"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(event) => handleCapture(event.target.files?.[0])}
-            />
+            <input ref={inputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={(event) => handleCapture(event.target.files?.[0])} />
             <p className="capture-note">Photo evidence stays attached to the contribution flow.</p>
           </div>
         </div>
       </section>
+
+      <SnapScan />
 
       <section className="flow-section" id="how-it-works">
         <div className="section-heading">
@@ -85,10 +77,7 @@ export default function IShoppHome() {
       </section>
 
       <section className="savings-section" id="savings">
-        <div>
-          <p className="eyebrow">THE PROMISE</p>
-          <h2>Don&apos;t just find a price.<br /><em>Find the better decision.</em></h2>
-        </div>
+        <div><p className="eyebrow">THE PROMISE</p><h2>Don&apos;t just find a price.<br /><em>Find the better decision.</em></h2></div>
         <div className="savings-points">
           <div><strong>01</strong><span>Verified prices, not guesses.</span></div>
           <div><strong>02</strong><span>Retailer and branch-aware comparisons.</span></div>
