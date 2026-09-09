@@ -9,6 +9,8 @@ type Basket = { id: string; name: string; created_at: string; updated_at: string
 type Props = { email: string; name: string; baskets: Basket[]; itemCount: number };
 type Product = { id: string; name: string; brand: string | null; unit: string | null; retailers: { id: string; name: string } | null };
 
+type Rewards = { points: number; trustLevel: string };
+
 export default function IShoppDashboard({ email, name, baskets: initialBaskets, itemCount: initialItemCount }: Props) {
   const [baskets, setBaskets] = useState(initialBaskets);
   const [itemCount, setItemCount] = useState(initialItemCount);
@@ -16,6 +18,7 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
   const [results, setResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [rewards, setRewards] = useState<Rewards | null>(null);
   const firstName = useMemo(() => name.trim().split(/\s+/)[0] || email.split("@")[0] || "there", [name, email]);
   const activeBasket = baskets[0] ?? null;
 
@@ -35,6 +38,14 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
     }, 260);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [query]);
+
+  useEffect(() => {
+    fetch("/api/rewards", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json();
+      setRewards(payload.data ?? null);
+    }).catch(() => undefined);
+  }, []);
 
   async function createBasket() {
     if (creating) return;
@@ -85,7 +96,8 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
           {activeBasket ? <><a className={styles.basketLink} href={`/basket/${activeBasket.id}`}>Open basket <span>→</span></a><a className={styles.savingsLink} href={`/basket/${activeBasket.id}/savings`}>See verified savings <span>→</span></a></> : <p className={styles.basketEmpty}>Add your first product and iShopp will create a basket for you.</p>}
         </article>
       </section>
-      <section className={styles.next}><div><p className={styles.eyebrow}>THE DECISION ENGINE</p><h2>Compare.<br /><em>Optimise.</em><br />Save.</h2></div><div className={styles.nextCopy}><p>Start with verified product prices. Then account for practical fulfilment so the cheapest option is actually useful.</p><div className={styles.nextSteps}><a href={activeBasket ? `/basket/${activeBasket.id}` : "#"}><b>03</b> Compare</a><a href={activeBasket ? `/basket/${activeBasket.id}/savings` : "#"}><b>04</b> Optimise</a><span><b>05</b> Save</span></div></div></section>
+      <section className={styles.next}><div><p className={styles.eyebrow}>THE DECISION ENGINE</p><h2>Compare.<br /><em>Optimise.</em><br />Save.</h2></div><div className={styles.nextCopy}><p>Start with verified product prices. Then account for practical fulfilment so the cheapest option is actually useful.</p><div className={styles.nextSteps}><a href={activeBasket ? `/basket/${activeBasket.id}` : "#"}><b>03</b> Compare</a><a href={activeBasket ? `/basket/${activeBasket.id}/savings` : "#"}><b>04</b> Optimise</a><a href="/rewards"><b>05</b> Earn</a></div></div></section>
+      <section className={styles.rewardStrip}><div><p className={styles.eyebrow}>COMMUNITY VALUE</p><h2>{rewards ? `${rewards.points} points` : "Earn as you contribute."}</h2><p>{rewards ? `Trust level: ${rewards.trustLevel}.` : "Verified price contributions build your record and earn points."}</p></div><a href="/rewards">View rewards →</a></section>
       <footer className={styles.footer}><IShoppLogo className={styles.footerLogo} /><span>Share More. Save More.</span></footer>
     </main>
   );
