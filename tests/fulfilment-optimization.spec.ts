@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { test, expect } from "@playwright/test";
 import { optimizeFulfilment, type FulfilmentRule } from "@/lib/basket/fulfilment-optimization";
 
 const items = [
@@ -18,21 +18,21 @@ const deliveryRules: FulfilmentRule[] = [
   { retailerId: "r2", branchId: "b2", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 0, minimumOrderValue: 0, currency: "ZAR" },
 ];
 
-describe("optimizeFulfilment", () => {
-  it("chooses the cheapest complete retailer when verified fulfilment is equal", () => {
+test.describe("optimizeFulfilment", () => {
+  test("chooses the cheapest complete retailer when verified fulfilment is equal", () => {
     const result = optimizeFulfilment(items, offers, deliveryRules, { maxStores: 2 });
     expect(result?.totalProductCost).toBe(10);
     expect(result?.retailerCount).toBe(1);
     expect(result?.totalLandedCost).toBe(10);
   });
 
-  it("requires an available delivery rule for every selected offer", () => {
+  test("requires an available delivery rule for every selected offer", () => {
     const result = optimizeFulfilment(items, offers, [deliveryRules[0]], { maxStores: 2 });
     expect(result?.retailerCount).toBe(1);
     expect(result?.allocations.every((allocation) => allocation.retailerId === "r1")).toBe(true);
   });
 
-  it("uses branch-specific rules in preference to retailer-wide rules", () => {
+  test("uses branch-specific rules in preference to retailer-wide rules", () => {
     const result = optimizeFulfilment([{ productId: "p1", quantity: 1 }], offers, [
       { retailerId: "r1", branchId: null, fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 50, minimumOrderValue: 0, currency: "ZAR" },
       { retailerId: "r1", branchId: "b1", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 2, minimumOrderValue: 0, currency: "ZAR" },
@@ -42,7 +42,7 @@ describe("optimizeFulfilment", () => {
     expect(result?.deliveryFees).toBe(2);
   });
 
-  it("includes delivery fees once per fulfilment scope", () => {
+  test("includes delivery fees once per fulfilment scope", () => {
     const result = optimizeFulfilment(items, offers, [
       { retailerId: "r1", branchId: "b1", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 0, minimumOrderValue: 0, currency: "ZAR" },
       { retailerId: "r2", branchId: "b2", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 20, minimumOrderValue: 0, currency: "ZAR" },
@@ -51,7 +51,7 @@ describe("optimizeFulfilment", () => {
     expect(result?.deliveryFees).toBe(0);
   });
 
-  it("treats minimum order as a hard constraint rather than a surcharge", () => {
+  test("treats minimum order as a hard constraint rather than a surcharge", () => {
     const result = optimizeFulfilment([{ productId: "p1", quantity: 1 }], offers, [
       { retailerId: "r1", branchId: "b1", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 0, minimumOrderValue: 20, currency: "ZAR" },
       { retailerId: "r2", branchId: "b2", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 0, minimumOrderValue: 0, currency: "ZAR" },
@@ -61,7 +61,7 @@ describe("optimizeFulfilment", () => {
     expect(result?.allocations[0].retailerId).toBe("r2");
   });
 
-  it("combines delivery, minimum order and store-visit cost", () => {
+  test("combines delivery, minimum order and store-visit cost", () => {
     const result = optimizeFulfilment(items, offers, [
       { retailerId: "r1", branchId: "b1", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 5, minimumOrderValue: 30, currency: "ZAR" },
       { retailerId: "r2", branchId: "b2", fulfilmentMode: "delivery", isAvailable: true, deliveryFee: 3, minimumOrderValue: 0, currency: "ZAR" },
@@ -71,7 +71,7 @@ describe("optimizeFulfilment", () => {
     expect(result?.storeVisitCost).toBe(2);
   });
 
-  it("does not combine offers and fulfilment rules from different currencies", () => {
+  test("does not combine offers and fulfilment rules from different currencies", () => {
     const result = optimizeFulfilment([{ productId: "p1", quantity: 1 }], [
       { ...offers[0], currency: "USD" },
       offers[2],
@@ -83,7 +83,7 @@ describe("optimizeFulfilment", () => {
     expect(result?.totalLandedCost).toBe(5);
   });
 
-  it("returns null when no delivery rule can cover the basket", () => {
+  test("returns null when no delivery rule can cover the basket", () => {
     const result = optimizeFulfilment(items, offers, [], { maxStores: 2 });
     expect(result).toBeNull();
   });
