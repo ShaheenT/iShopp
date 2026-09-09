@@ -6,6 +6,7 @@ import type { SavingsItem, SavingsOffer } from "@/lib/basket/savings-optimizatio
 import { createClient } from "@/lib/supabase/server";
 
 const basketIdSchema = z.string().uuid();
+const idempotencyKeySchema = z.string().uuid();
 const bodySchema = z.object({
   maxStores: z.number().int().min(1).max(5).default(2),
   storeVisitCost: z.number().finite().min(0).max(1000).default(0),
@@ -16,6 +17,11 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request, { params }: { params: Promise<{ basketId: string }> }) {
   const { basketId } = await params;
   if (!basketIdSchema.safeParse(basketId).success) return NextResponse.json({ error: "invalid_basket_id" }, { status: 400 });
+
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (!idempotencyKeySchema.safeParse(idempotencyKey).success) {
+    return NextResponse.json({ error: "invalid_idempotency_key" }, { status: 400 });
+  }
 
   const parsedBody = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsedBody.success) return NextResponse.json({ error: "invalid_plan_parameters" }, { status: 400 });
@@ -89,6 +95,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
     p_total_landed_cost: result.totalLandedCost,
     p_currency: result.allocations[0]?.currency ?? "ZAR",
     p_items: planItems,
+    p_idempotency_key: idempotencyKey,
   });
   if (planError) {
     console.error("shopping plan creation failed", planError);
@@ -97,6 +104,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
 
   return NextResponse.json({
     data: { ...result, planId: plan?.[0]?.plan_id ?? null, expiresAt: plan?.[0]?.expires_at ?? null },
-    meta: { basketId, commercialPricing: "verified", source: "verified_specials_and_fulfilment_rules" },
+    meta: { basketId, commercialPricing: "verified", source: "verified_specials_and_fulfilment_rules", idempotent: false },
   }, { status: 201 });
 }
