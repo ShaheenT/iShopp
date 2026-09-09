@@ -1,4 +1,5 @@
 -- Trust is derived from verified outcomes. Rewards are ledger entries, not mutable balances.
+-- community_price_verifiers is created by 0014_community_price_intelligence.sql.
 
 create table public.community_trust_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -9,20 +10,6 @@ create table public.community_trust_profiles (
   trust_level text not null default 'new' check (trust_level in ('new','contributor','trusted','expert')),
   updated_at timestamptz not null default now()
 );
-
-create table public.community_price_verifiers (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  is_active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index community_price_verifiers_active_idx
-on public.community_price_verifiers(is_active)
-where is_active = true;
-
-alter table public.community_price_verifiers enable row level security;
-revoke all on table public.community_price_verifiers from anon, authenticated;
 
 create table public.community_reward_ledger (
   id uuid primary key default gen_random_uuid(),
