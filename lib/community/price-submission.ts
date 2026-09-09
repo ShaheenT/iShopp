@@ -10,6 +10,7 @@ export const communityPriceSubmissionSchema = z.object({
   observedAt: z.string().datetime({ offset: true }).optional(),
   sourceUrl: z.string().url().nullable().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+  idempotencyKey: z.string().uuid(),
   evidence: z.object({
     sourceUrl: z.string().url().nullable().optional(),
     storagePath: z.string().trim().min(1).max(1000).nullable().optional(),
