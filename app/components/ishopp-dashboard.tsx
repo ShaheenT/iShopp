@@ -82,10 +82,10 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
         <article className={`${styles.card} ${styles.basket}`}>
           <div className={styles.kicker}><span>02</span><span>YOUR BASKET</span></div>
           <div className={styles.basketHead}><div><h2>{activeBasket?.name ?? "Start a basket"}</h2><p>{itemCount} {itemCount === 1 ? "item" : "items"} across your baskets</p></div><button className={styles.newButton} type="button" onClick={createBasket} disabled={creating}>{creating ? "Creating…" : "+ New basket"}</button></div>
-          {activeBasket ? <a className={styles.basketLink} href={`/basket/${activeBasket.id}`}>Open basket <span>→</span></a> : <p className={styles.basketEmpty}>Add your first product and iShopp will create a basket for you.</p>}
+          {activeBasket ? <><a className={styles.basketLink} href={`/basket/${activeBasket.id}`}>Open basket <span>→</span></a><a className={styles.savingsLink} href={`/basket/${activeBasket.id}/savings`}>See verified savings <span>→</span></a></> : <p className={styles.basketEmpty}>Add your first product and iShopp will create a basket for you.</p>}
         </article>
       </section>
-      <section className={styles.next}><div><p className={styles.eyebrow}>THE NEXT DECISION</p><h2>Compare first.<br /><em>Optimise second.</em></h2></div><div className={styles.nextCopy}><p>Once your basket has products, iShopp can use verified retailer intelligence to compare practical buying options and calculate savings without guessing.</p><div className={styles.nextSteps}><span><b>03</b> Compare</span><span><b>04</b> Optimise</span><span><b>05</b> Save</span></div></div></section>
+      <section className={styles.next}><div><p className={styles.eyebrow}>THE DECISION ENGINE</p><h2>Compare.<br /><em>Optimise.</em><br />Save.</h2></div><div className={styles.nextCopy}><p>Start with verified product prices. Then account for practical fulfilment so the cheapest option is actually useful.</p><div className={styles.nextSteps}><a href={activeBasket ? `/basket/${activeBasket.id}` : "#"}><b>03</b> Compare</a><a href={activeBasket ? `/basket/${activeBasket.id}/savings` : "#"}><b>04</b> Optimise</a><span><b>05</b> Save</span></div></div></section>
       <footer className={styles.footer}><IShoppLogo className={styles.footerLogo} /><span>Share More. Save More.</span></footer>
     </main>
   );
