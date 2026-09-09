@@ -26,7 +26,7 @@ describe("optimizeFulfilment", () => {
     expect(result?.totalLandedCost).toBe(10);
   });
 
-  it("requires an available verified delivery rule for every selected offer", () => {
+  it("requires an available delivery rule for every selected offer", () => {
     const result = optimizeFulfilment(items, offers, [deliveryRules[0]], { maxStores: 2 });
     expect(result?.retailerCount).toBe(1);
     expect(result?.allocations.every((allocation) => allocation.retailerId === "r1")).toBe(true);
@@ -71,7 +71,19 @@ describe("optimizeFulfilment", () => {
     expect(result?.storeVisitCost).toBe(2);
   });
 
-  it("returns null when no verified fulfilment rule can cover the basket", () => {
+  it("does not combine offers and fulfilment rules from different currencies", () => {
+    const result = optimizeFulfilment([{ productId: "p1", quantity: 1 }], [
+      { ...offers[0], currency: "USD" },
+      offers[2],
+    ], [
+      { ...deliveryRules[0], currency: "ZAR" },
+      deliveryRules[1],
+    ], { maxStores: 1 });
+    expect(result?.allocations[0].retailerId).toBe("r2");
+    expect(result?.totalLandedCost).toBe(5);
+  });
+
+  it("returns null when no delivery rule can cover the basket", () => {
     const result = optimizeFulfilment(items, offers, [], { maxStores: 2 });
     expect(result).toBeNull();
   });
