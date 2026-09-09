@@ -32,13 +32,12 @@ export async function GET(request: Request) {
     .from("products")
     .select("id,name,brand,barcode,unit,retailer_id,retailers(id,name)")
     .eq("verification_status", "verified")
-    .not("retailer_id", "is", null)
-    .limit(12);
+    .not("retailer_id", "is", null);
 
   const [nameResult, brandResult, barcodeResult] = await Promise.all([
-    base().ilike("name", `%${term}%`),
-    base().ilike("brand", `%${term}%`),
-    base().eq("barcode", term),
+    base().ilike("name", `%${term}%`).limit(12),
+    base().ilike("brand", `%${term}%`).limit(12),
+    base().eq("barcode", term).limit(12),
   ]);
 
   const error = nameResult.error ?? brandResult.error ?? barcodeResult.error;
