@@ -7,6 +7,16 @@ const querySchema = z.object({
   q: z.string().trim().min(2).max(100),
 });
 
+type ProductSearchResult = {
+  id: string;
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  unit: string | null;
+  retailer_id: string;
+  retailers: { id: string; name: string } | null;
+};
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -16,22 +26,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid_product_search" }, { status: 400 });
   }
 
+  const term = parsed.data.q.replace(/[%_]/g, "");
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const base = () => supabase
     .from("products")
     .select("id,name,brand,barcode,unit,retailer_id,retailers(id,name)")
     .eq("verification_status", "verified")
     .not("retailer_id", "is", null)
-    .or(
-      `name.ilike.%${parsed.data.q}%,brand.ilike.%${parsed.data.q}%,barcode.ilike.%${parsed.data.q}%`,
-    )
-    .order("name")
     .limit(12);
 
+  const [nameResult, brandResult, barcodeResult] = await Promise.all([
+    base().ilike("name", `%${term}%`),
+    base().ilike("brand", `%${term}%`),
+    base().eq("barcode", term),
+  ]);
+
+  const error = nameResult.error ?? brandResult.error ?? barcodeResult.error;
   if (error) {
     console.error("product search failed", error);
     return NextResponse.json({ error: "product_search_failed" }, { status: 400 });
   }
 
-  return NextResponse.json({ data: data ?? [] });
+  const products = new Map<string, ProductSearchResult>();
+  for (const item of [...(nameResult.data ?? []), ...(brandResult.data ?? []), ...(barcodeResult.data ?? [])]) {
+    products.set(item.id, item as ProductSearchResult);
+  }
+
+  return NextResponse.json({ data: Array.from(products.values()).slice(0, 12) });
 }
