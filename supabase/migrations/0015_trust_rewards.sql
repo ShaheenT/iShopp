@@ -10,6 +10,20 @@ create table public.community_trust_profiles (
   updated_at timestamptz not null default now()
 );
 
+create table public.community_price_verifiers (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index community_price_verifiers_active_idx
+on public.community_price_verifiers(is_active)
+where is_active = true;
+
+alter table public.community_price_verifiers enable row level security;
+revoke all on table public.community_price_verifiers from anon, authenticated;
+
 create table public.community_reward_ledger (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -93,7 +107,6 @@ end;
 $$;
 
 revoke all on function public.recalculate_community_trust(uuid) from public;
-grant execute on function public.recalculate_community_trust(uuid) to authenticated;
 
 create or replace function public.get_community_reward_summary()
 returns table (points integer, verified_contributions integer, trust_score numeric, trust_level text)
@@ -124,6 +137,7 @@ declare
   v_verified_at timestamptz := now();
 begin
   if auth.uid() is null then raise exception 'authentication required'; end if;
+  if length(trim(coalesce(p_reason, ''))) = 0 then raise exception 'verification reason required'; end if;
   if not exists (select 1 from public.community_price_verifiers v where v.user_id = auth.uid() and v.is_active) then
     raise exception 'community price verification access denied';
   end if;
@@ -144,12 +158,12 @@ begin
 
   update public.community_price_submissions
   set verification_status = 'verified', verified_at = v_verified_at,
-      verified_by = auth.uid(), verification_reason = p_reason
+      verified_by = auth.uid(), verification_reason = trim(p_reason)
   where id = p_submission_id;
 
   insert into public.community_price_verification_events
     (submission_id, action, previous_status, new_status, actor_user_id, reason, evidence_id)
-  values (p_submission_id, 'verified', v_previous, 'verified', auth.uid(), p_reason, v_evidence_id);
+  values (p_submission_id, 'verified', v_previous, 'verified', auth.uid(), trim(p_reason), v_evidence_id);
 
   insert into public.community_reward_ledger (user_id, submission_id, points, reason)
   values (v_submitter, p_submission_id, 10, 'Verified community price contribution')
@@ -174,6 +188,7 @@ declare
   v_submitter uuid;
 begin
   if auth.uid() is null then raise exception 'authentication required'; end if;
+  if length(trim(coalesce(p_reason, ''))) = 0 then raise exception 'rejection reason required'; end if;
   if not exists (select 1 from public.community_price_verifiers v where v.user_id = auth.uid() and v.is_active) then
     raise exception 'community price verification access denied';
   end if;
@@ -186,12 +201,12 @@ begin
 
   update public.community_price_submissions
   set verification_status = 'rejected', verified_at = now(),
-      verified_by = auth.uid(), verification_reason = p_reason
+      verified_by = auth.uid(), verification_reason = trim(p_reason)
   where id = p_submission_id;
 
   insert into public.community_price_verification_events
     (submission_id, action, previous_status, new_status, actor_user_id, reason)
-  values (p_submission_id, 'rejected', v_previous, 'rejected', auth.uid(), p_reason);
+  values (p_submission_id, 'rejected', v_previous, 'rejected', auth.uid(), trim(p_reason));
 
   perform public.recalculate_community_trust(v_submitter);
   return query select p_submission_id, 'rejected'::public.verification_status;
