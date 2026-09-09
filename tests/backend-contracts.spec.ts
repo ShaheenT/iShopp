@@ -57,6 +57,15 @@ test.describe("backend migration contracts", () => {
     expect(sql).toContain("store_branches sb");
   });
 
+  test("shopping plans must represent the basket exactly", () => {
+    const sql = read("supabase/migrations/0023_shopping_plan_basket_integrity.sql");
+    expect(sql).toContain("plan items do not match basket");
+    expect(sql).toContain("duplicate basket product in plan");
+    expect(sql).toContain("plan item does not match basket quantity");
+    expect(sql).toContain("shopping_basket_items");
+    expect(sql).toContain("create or replace function public.create_verified_shopping_plan");
+  });
+
   test("anomaly detection is advisory and verifier-gated", () => {
     const sql = read("supabase/migrations/0019_community_anomaly_detection.sql");
     expect(sql).toContain("Anomaly detection is a review signal only");
