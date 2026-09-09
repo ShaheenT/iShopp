@@ -46,6 +46,3 @@ alter table public.special_verification_events enable row level security;
 revoke all on table public.special_evidence from anon, authenticated;
 revoke all on table public.special_verification_events from anon, authenticated;
 grant select on table public.special_evidence to authenticated;
-
-after insert on public.specials
-for each row execute procedure public.handle_special_submission();
