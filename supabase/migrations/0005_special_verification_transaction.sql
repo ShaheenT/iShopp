@@ -13,6 +13,7 @@ as $$
 declare
   v_special public.specials;
   v_evidence public.special_evidence;
+  v_previous_status public.verification_status;
   v_next_status public.verification_status;
 begin
   select * into v_special
@@ -24,7 +25,9 @@ begin
     raise exception 'special_not_found' using errcode = 'P0002';
   end if;
 
-  if v_special.verification_status = 'verified' then
+  v_previous_status := v_special.verification_status;
+
+  if v_previous_status = 'verified' then
     raise exception 'special_already_verified' using errcode = 'P0003';
   end if;
 
@@ -69,7 +72,7 @@ begin
   ) values (
     p_special_id,
     p_action,
-    v_special.verification_status,
+    v_previous_status,
     v_next_status,
     p_actor_user_id,
     p_reason,
