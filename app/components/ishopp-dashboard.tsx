@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import IShoppLogo from "./ishopp-logo";
-import AuthModal from "./auth-modal";
 import styles from "./ishopp-dashboard.module.css";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,7 +16,6 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
   const [results, setResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
   const firstName = useMemo(() => name.trim().split(/\s+/)[0] || email.split("@")[0] || "there", [name, email]);
   const activeBasket = baskets[0] ?? null;
 
@@ -72,7 +70,7 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
       </nav>
       <section className={styles.hero}>
         <div><p className={styles.eyebrow}>YOUR SHOPPING INTELLIGENCE</p><h1>Good to see you,<br /><em>{firstName}.</em></h1><p>Build your basket, compare verified prices and turn community intelligence into a better buying decision.</p></div>
-        <button className={styles.capture} type="button" onClick={() => setAuthOpen(true)}>Snap / Scan <span>→</span></button>
+        <a className={styles.capture} href="/#community">Snap / Scan <span>→</span></a>
       </section>
       <section className={styles.grid}>
         <article className={`${styles.card} ${styles.market}`}>
@@ -87,12 +85,8 @@ export default function IShoppDashboard({ email, name, baskets: initialBaskets, 
           {activeBasket ? <a className={styles.basketLink} href={`/basket/${activeBasket.id}`}>Open basket <span>→</span></a> : <p className={styles.basketEmpty}>Add your first product and iShopp will create a basket for you.</p>}
         </article>
       </section>
-      <section className={styles.next}>
-        <div><p className={styles.eyebrow}>THE NEXT DECISION</p><h2>Compare first.<br /><em>Optimise second.</em></h2></div>
-        <div className={styles.nextCopy}><p>Once your basket has products, iShopp can use verified retailer intelligence to compare practical buying options and calculate savings without guessing.</p><div className={styles.nextSteps}><span><b>03</b> Compare</span><span><b>04</b> Optimise</span><span><b>05</b> Save</span></div></div>
-      </section>
+      <section className={styles.next}><div><p className={styles.eyebrow}>THE NEXT DECISION</p><h2>Compare first.<br /><em>Optimise second.</em></h2></div><div className={styles.nextCopy}><p>Once your basket has products, iShopp can use verified retailer intelligence to compare practical buying options and calculate savings without guessing.</p><div className={styles.nextSteps}><span><b>03</b> Compare</span><span><b>04</b> Optimise</span><span><b>05</b> Save</span></div></div></section>
       <footer className={styles.footer}><IShoppLogo className={styles.footerLogo} /><span>Share More. Save More.</span></footer>
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </main>
   );
 }
