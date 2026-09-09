@@ -1,6 +1,15 @@
 -- Community observations are submissions, not verified commercial facts.
 -- They become trusted inputs only after an explicit verification transition.
 
+create table public.community_price_verifiers (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.community_price_verifiers enable row level security;
+revoke all on table public.community_price_verifiers from anon, authenticated;
+
 create table public.community_price_submissions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -32,12 +41,9 @@ alter table public.community_price_submissions
   references public.store_branches(id, retailer_id)
   on delete cascade;
 
-create index community_price_product_idx
-  on public.community_price_submissions(product_id, observed_at desc);
-create index community_price_retailer_idx
-  on public.community_price_submissions(retailer_id, observed_at desc);
-create index community_price_user_idx
-  on public.community_price_submissions(user_id, created_at desc);
+create index community_price_product_idx on public.community_price_submissions(product_id, observed_at desc);
+create index community_price_retailer_idx on public.community_price_submissions(retailer_id, observed_at desc);
+create index community_price_user_idx on public.community_price_submissions(user_id, created_at desc);
 
 create table public.community_price_evidence (
   id uuid primary key default gen_random_uuid(),
@@ -69,8 +75,7 @@ create table public.community_price_verification_events (
   created_at timestamptz not null default now()
 );
 
-create index community_price_verification_events_idx
-  on public.community_price_verification_events(submission_id, created_at desc);
+create index community_price_verification_events_idx on public.community_price_verification_events(submission_id, created_at desc);
 
 alter table public.community_price_submissions enable row level security;
 alter table public.community_price_evidence enable row level security;
@@ -101,46 +106,31 @@ before update on public.community_price_submissions
 for each row execute function public.set_community_price_updated_at();
 
 create or replace function public.submit_community_price(
-  p_product_id uuid,
-  p_retailer_id uuid,
-  p_store_branch_id uuid,
-  p_observed_price numeric,
-  p_regular_price numeric,
-  p_currency char(3),
-  p_observed_at timestamptz,
-  p_source_url text,
-  p_notes text,
-  p_evidence_source_url text,
-  p_evidence_storage_path text,
-  p_evidence_source_hash text,
-  p_evidence_extracted_text text,
+  p_product_id uuid, p_retailer_id uuid, p_store_branch_id uuid,
+  p_observed_price numeric, p_regular_price numeric, p_currency char(3),
+  p_observed_at timestamptz, p_source_url text, p_notes text,
+  p_evidence_source_url text, p_evidence_storage_path text,
+  p_evidence_source_hash text, p_evidence_extracted_text text,
   p_evidence_extracted_data jsonb
 )
 returns table (submission_id uuid, verification_status public.verification_status, evidence_id uuid)
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
-declare
-  v_submission_id uuid;
-  v_evidence_id uuid;
+declare v_submission_id uuid; v_evidence_id uuid;
 begin
   if auth.uid() is null then raise exception 'authentication required'; end if;
-  if p_evidence_source_url is null and p_evidence_storage_path is null then
-    raise exception 'price evidence is required';
-  end if;
+  if p_evidence_source_url is null and p_evidence_storage_path is null then raise exception 'price evidence is required'; end if;
 
   insert into public.community_price_submissions (
-    user_id, product_id, retailer_id, store_branch_id, observed_price,
-    regular_price, currency, observed_at, source_type, source_url, notes
+    user_id, product_id, retailer_id, store_branch_id, observed_price, regular_price,
+    currency, observed_at, source_type, source_url, notes
   ) values (
-    auth.uid(), p_product_id, p_retailer_id, p_store_branch_id, p_observed_price,
-    p_regular_price, p_currency, coalesce(p_observed_at, now()), 'community', p_source_url, p_notes
+    auth.uid(), p_product_id, p_retailer_id, p_store_branch_id, p_observed_price, p_regular_price,
+    p_currency, coalesce(p_observed_at, now()), 'community', p_source_url, p_notes
   ) returning id into v_submission_id;
 
   insert into public.community_price_evidence (
-    submission_id, source_url, storage_path, source_hash,
-    status, extracted_text, extracted_data
+    submission_id, source_url, storage_path, source_hash, status, extracted_text, extracted_data
   ) values (
     v_submission_id, p_evidence_source_url, p_evidence_storage_path, p_evidence_source_hash,
     'captured', p_evidence_extracted_text, coalesce(p_evidence_extracted_data, '{}'::jsonb)
@@ -161,37 +151,61 @@ grant execute on function public.submit_community_price(
   text, text, text, text, jsonb
 ) to authenticated;
 
+create or replace function public.verify_community_price(
+  p_submission_id uuid,
+  p_reason text
+)
+returns table (submission_id uuid, verification_status public.verification_status, verified_at timestamptz)
+language plpgsql security definer set search_path = public
+as $$
+declare v_previous public.verification_status; v_verified_at timestamptz := now();
+begin
+  if auth.uid() is null then raise exception 'authentication required'; end if;
+  if not exists (select 1 from public.community_price_verifiers v where v.user_id = auth.uid() and v.is_active) then
+    raise exception 'community price verification access denied';
+  end if;
+
+  select verification_status into v_previous
+  from public.community_price_submissions
+  where id = p_submission_id
+  for update;
+  if not found then raise exception 'community price submission not found'; end if;
+  if v_previous <> 'pending' then raise exception 'only pending community prices can be verified'; end if;
+
+  if not exists (
+    select 1 from public.community_price_evidence e
+    where e.submission_id = p_submission_id and e.status in ('captured', 'processed')
+      and (e.source_url is not null or e.storage_path is not null)
+  ) then raise exception 'usable evidence required before verification'; end if;
+
+  update public.community_price_submissions
+  set verification_status = 'verified', verified_at = v_verified_at,
+      verified_by = auth.uid(), verification_reason = p_reason
+  where id = p_submission_id;
+
+  insert into public.community_price_verification_events (
+    submission_id, action, previous_status, new_status, actor_user_id, reason
+  ) values (p_submission_id, 'verified', v_previous, 'verified', auth.uid(), p_reason);
+
+  return query select p_submission_id, 'verified'::public.verification_status, v_verified_at;
+end;
+$$;
+
+grant execute on function public.verify_community_price(uuid, text) to authenticated;
+
 create or replace function public.get_verified_community_prices(p_product_id uuid)
 returns table (
-  submission_id uuid,
-  retailer_id uuid,
-  branch_id uuid,
-  observed_price numeric,
-  regular_price numeric,
-  currency char(3),
-  observed_at timestamptz,
-  verified_at timestamptz
+  submission_id uuid, retailer_id uuid, branch_id uuid, observed_price numeric,
+  regular_price numeric, currency char(3), observed_at timestamptz, verified_at timestamptz
 )
-language sql
-security definer
-set search_path = public
+language sql security definer set search_path = public
 as $$
-  select
-    cps.id,
-    cps.retailer_id,
-    cps.store_branch_id,
-    cps.observed_price,
-    cps.regular_price,
-    cps.currency,
-    cps.observed_at,
-    cps.verified_at
+  select cps.id, cps.retailer_id, cps.store_branch_id, cps.observed_price,
+         cps.regular_price, cps.currency, cps.observed_at, cps.verified_at
   from public.community_price_submissions cps
   join public.products p on p.id = cps.product_id and p.verification_status = 'verified'
-  join public.retailers r on r.id = cps.retailer_id
-    and r.status = 'active'
-    and r.verification_status = 'verified'
-  where cps.product_id = p_product_id
-    and cps.verification_status = 'verified'
+  join public.retailers r on r.id = cps.retailer_id and r.status = 'active' and r.verification_status = 'verified'
+  where cps.product_id = p_product_id and cps.verification_status = 'verified'
   order by cps.observed_at desc, cps.id asc;
 $$;
 
