@@ -30,6 +30,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  const { data: existingPlan, error: existingPlanError } = await supabase
+    .from("shopping_plans")
+    .select("id, basket_id, expires_at")
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (existingPlanError) return NextResponse.json({ error: "shopping_plan_lookup_failed" }, { status: 500 });
+  if (existingPlan && existingPlan.basket_id !== basketId) {
+    return NextResponse.json({ error: "idempotency_key_reused" }, { status: 409 });
+  }
+  const idempotentRetry = Boolean(existingPlan);
+
   const { data: basketItems, error: basketError } = await supabase
     .from("shopping_basket_items")
     .select("product_id, quantity, shopping_baskets!inner(user_id)")
@@ -104,6 +115,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
 
   return NextResponse.json({
     data: { ...result, planId: plan?.[0]?.plan_id ?? null, expiresAt: plan?.[0]?.expires_at ?? null },
-    meta: { basketId, commercialPricing: "verified", source: "verified_specials_and_fulfilment_rules", idempotent: false },
-  }, { status: 201 });
+    meta: { basketId, commercialPricing: "verified", source: "verified_specials_and_fulfilment_rules", idempotent: idempotentRetry },
+  }, { status: idempotentRetry ? 200 : 201 });
 }
