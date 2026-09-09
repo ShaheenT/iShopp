@@ -57,6 +57,7 @@ export function optimizeFulfilment(
     if (!rule.isAvailable || rule.fulfilmentMode !== 'delivery') continue;
     if (!Number.isFinite(rule.deliveryFee) || rule.deliveryFee < 0) return null;
     if (!Number.isFinite(rule.minimumOrderValue ?? 0) || (rule.minimumOrderValue ?? 0) < 0) return null;
+    if (!rule.currency || rule.currency.length !== 3) return null;
     const key = ruleKey(rule.retailerId, rule.branchId);
     if (ruleMap.has(key)) return null;
     ruleMap.set(key, rule);
@@ -81,7 +82,10 @@ export function optimizeFulfilment(
     for (const item of validItems) {
       const offer = validOffers
         .filter((candidate) => candidate.productId === item.productId && selected.includes(candidate.retailerId))
-        .filter((candidate) => getRule(candidate) !== undefined)
+        .filter((candidate) => {
+          const rule = getRule(candidate);
+          return rule !== undefined && rule.currency === candidate.currency;
+        })
         .sort((a, b) => a.unitPrice - b.unitPrice || a.retailerId.localeCompare(b.retailerId) || (a.branchId ?? '').localeCompare(b.branchId ?? '') || a.specialId.localeCompare(b.specialId))[0];
       if (!offer) return;
       allocations.push({ ...item, ...offer, lineTotal: round(item.quantity * offer.unitPrice) });
