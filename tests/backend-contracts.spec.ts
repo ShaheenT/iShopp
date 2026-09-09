@@ -1,0 +1,71 @@
+import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const root = process.cwd();
+const read = (path: string) => readFileSync(join(root, path), "utf8");
+
+test.describe("backend migration contracts", () => {
+  test("trust migration creates verifier access before verifier RPCs", () => {
+    const sql = read("supabase/migrations/0015_trust_rewards.sql");
+    expect(sql.indexOf("create table public.community_price_verifiers")).toBeGreaterThan(-1);
+    expect(sql.indexOf("create table public.community_price_verifiers")).toBeLessThan(sql.indexOf("create or replace function public.verify_community_price"));
+    expect(sql).toContain("revoke all on table public.community_price_verifiers from anon, authenticated");
+    expect(sql).toContain("revoke all on function public.recalculate_community_trust(uuid) from public");
+    expect(sql).not.toContain("grant execute on function public.recalculate_community_trust(uuid) to authenticated");
+  });
+
+  test("action integrity validates branch-specific commercial facts", () => {
+    const sql = read("supabase/migrations/0018_action_integrity.sql");
+    expect(sql).toContain("create or replace function public.create_verified_shopping_plan");
+    expect(sql).toContain("line total");
+    expect(sql).toContain("minimum order");
+    expect(sql).toContain("currency");
+    expect(sql).toContain("verified");
+  });
+
+  test("anomaly detection is advisory and verifier-gated", () => {
+    const sql = read("supabase/migrations/0019_community_anomaly_detection.sql");
+    expect(sql).toContain("Anomaly detection is a review signal only");
+    expect(sql).toContain("community_price_verifiers");
+    expect(sql).toContain("extreme_deviation_from_verified_median");
+    expect(sql).toContain("duplicate_observation");
+    expect(sql).toContain("high_submission_velocity");
+    expect(sql).toContain("high_rejection_rate");
+    expect(sql).toContain("least(100, v_score)");
+  });
+});
+
+test.describe("API contracts", () => {
+  test("community verification endpoints enforce UUID validation and authentication", () => {
+    const verify = read("app/api/community/prices/[submissionId]/verify/route.ts");
+    const reject = read("app/api/community/prices/[submissionId]/reject/route.ts");
+    const risk = read("app/api/community/prices/[submissionId]/risk/route.ts");
+
+    for (const route of [verify, reject, risk]) {
+      expect(route).toContain("z.string().uuid()");
+      expect(route).toContain("supabase.auth.getUser()");
+      expect(route).toContain("401");
+    }
+    expect(verify).toContain('"verify_community_price"');
+    expect(reject).toContain('"reject_community_price"');
+    expect(risk).toContain('"get_community_price_risk"');
+  });
+
+  test("fulfilment optimization does not accept commercial truth from clients", () => {
+    const route = read("app/api/basket/[basketId]/fulfilment-optimize/route.ts");
+    expect(route).toContain("maxStores");
+    expect(route).toContain("storeVisitCost");
+    expect(route).not.toContain("deliveryFee");
+    expect(route).not.toContain("minimumOrder");
+    expect(route).toContain("get_basket_fulfilment_inputs");
+  });
+
+  test("shopping plan creation uses verified server-side snapshots", () => {
+    const route = read("app/api/basket/[basketId]/plan/route.ts");
+    expect(route).toContain("get_basket_intelligence_inputs");
+    expect(route).toContain("get_basket_fulfilment_inputs");
+    expect(route).toContain("create_verified_shopping_plan");
+    expect(route).toContain("expiresAt");
+  });
+});
