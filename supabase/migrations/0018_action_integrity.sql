@@ -74,8 +74,11 @@ begin
     from public.specials s
     join public.products p on p.id = s.product_id and p.verification_status = 'verified'
     join public.retailers r on r.id = s.retailer_id and r.status = 'active' and r.verification_status = 'verified'
+    left join public.store_branches sb on sb.id = s.store_branch_id
     where s.id = v_special_id and s.product_id = v_product_id and s.retailer_id = v_retailer_id
-      and s.verification_status = 'verified' and s.starts_at <= now() and (s.ends_at is null or s.ends_at > now());
+      and s.verification_status = 'verified' and s.starts_at <= now() and (s.ends_at is null or s.ends_at > now())
+      and ((s.store_branch_id is null and v_branch_id is null) or s.store_branch_id = v_branch_id)
+      and (s.store_branch_id is null or (sb.retailer_id = s.retailer_id and sb.is_active));
     if not found then raise exception 'verified special unavailable'; end if;
     if v_verified_price <> v_unit_price or v_special_currency <> v_currency then raise exception 'plan price mismatch'; end if;
 
@@ -97,6 +100,7 @@ begin
   end loop;
 
   if v_item_count = 0 then raise exception 'plan items required'; end if;
+  if v_expected_product_cost <> round(v_expected_product_cost, 2) then raise exception 'invalid product precision'; end if;
   if round(v_expected_product_cost, 2) <> round(p_total_product_cost, 2) then raise exception 'product cost mismatch'; end if;
 
   select count(distinct retailer_id) into v_retailer_count from public.shopping_plan_items where plan_id = v_plan_id;
@@ -104,7 +108,8 @@ begin
 
   for v_retailer_id, v_branch_id, v_delivery_fee, v_minimum_order in
     select spi.retailer_id, spi.store_branch_id, fr.delivery_fee, coalesce(fr.minimum_order_value, 0)
-    from public.shopping_plan_items spi join public.fulfilment_rules fr on fr.id = spi.fulfilment_rule_id
+    from public.shopping_plan_items spi
+    join public.fulfilment_rules fr on fr.id = spi.fulfilment_rule_id
     where spi.plan_id = v_plan_id
     group by spi.retailer_id, spi.store_branch_id, fr.delivery_fee, fr.minimum_order_value
   loop
