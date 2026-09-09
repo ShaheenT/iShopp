@@ -5,7 +5,15 @@ import IShoppLogo from "./ishopp-logo";
 import styles from "./savings-view.module.css";
 
 type Basket = { id: string; name: string; created_at: string; updated_at: string };
-type Savings = { currentCost: number; optimizedCost: number; savings: number; savingsPercent: number; currency: string; verified: boolean };
+type Savings = {
+  baselineCost: number | null;
+  optimizedCost: number | null;
+  savings: number;
+  savingsPercent: number;
+  currency: string;
+  verified: boolean;
+  unavailable?: boolean;
+};
 type Optimization = { totalCost?: number; totalLandedCost?: number; productCost?: number; totalProductCost?: number; deliveryCost?: number; deliveryFees?: number; storeVisitCost?: number; retailerCount?: number; stores?: Array<Record<string, unknown>> };
 
 export default function SavingsView({ basket }: { basket: Basket }) {
@@ -44,15 +52,16 @@ export default function SavingsView({ basket }: { basket: Basket }) {
 
   const currency = savings?.currency ?? "ZAR";
   const money = (value: number | undefined | null) => value == null ? "—" : `${currency} ${value.toFixed(2)}`;
+  const hasSaving = !!savings && !savings.unavailable && savings.savings > 0;
 
   return (
     <main className={styles.shell}>
       <nav className={styles.nav}><a href="/dashboard" aria-label="iShopp dashboard"><IShoppLogo className={styles.logo} /></a><a href={`/basket/${basket.id}`}>← {basket.name}</a></nav>
-      <section className={styles.hero}><p className={styles.eyebrow}>BASKET INTELLIGENCE</p><h1>How much can<br /><em>you save?</em></h1><p>iShopp compares verified commercial data first. Optimisation only appears when the underlying offers and fulfilment rules support it.</p></section>
+      <section className={styles.hero}><p className={styles.eyebrow}>BASKET INTELLIGENCE</p><h1>How much can<br /><em>you save?</em></h1><p>iShopp compares verified offers first, then shows whether splitting a basket across retailers can reduce the product cost.</p></section>
       {error && <div className={styles.error} role="alert">{error}</div>}
       <section className={styles.summary}>
-        <div><span>VERIFIED BASKET SAVINGS</span><strong>{loading ? "…" : savings ? money(savings.savings) : "—"}</strong><small>{loading ? "Calculating from verified offers" : savings?.savingsPercent ? `${savings.savingsPercent.toFixed(2)}% potential product-price difference` : "No verified saving established"}</small></div>
-        <div><span>OPTIMISED PRODUCT COST</span><strong>{loading ? "…" : savings ? money(savings.optimizedCost) : "—"}</strong><small>{savings?.verified ? "Verified source data" : "Unavailable"}</small></div>
+        <div><span>POTENTIAL VERIFIED SAVING</span><strong>{loading ? "…" : hasSaving ? money(savings?.savings) : "—"}</strong><small>{loading ? "Calculating from verified offers" : hasSaving ? `${savings?.savingsPercent.toFixed(2)}% versus the lowest verified single-retailer basket` : "No verified saving established"}</small></div>
+        <div><span>OPTIMISED PRODUCT COST</span><strong>{loading ? "…" : money(savings?.optimizedCost)}</strong><small>{savings?.verified ? "Verified source data" : "Unavailable"}</small></div>
       </section>
       <section className={styles.decision}>
         <div><p className={styles.eyebrow}>NEXT DECISION</p><h2>Price is only<br />the beginning.</h2><p>Now account for practical fulfilment: which retailers can cover the basket, how many store visits are needed, and what verified delivery rules apply.</p></div>
