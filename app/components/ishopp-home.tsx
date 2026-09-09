@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import IShoppLogo from "./ishopp-logo";
 import SnapScan from "./snap-scan";
 
 const steps = [
@@ -22,7 +23,9 @@ export default function IShoppHome() {
   return (
     <main className="ishopp-shell">
       <nav className="topbar" aria-label="Primary navigation">
-        <a className="wordmark" href="#top" aria-label="iShopp home">iShopp<span>•</span></a>
+        <a className="wordmark" href="#top" aria-label="iShopp home">
+          <IShoppLogo className="ishopp-logo" />
+        </a>
         <div className="nav-links">
           <a href="#how-it-works">How it works</a>
           <a href="#savings">Savings</a>
@@ -86,7 +89,7 @@ export default function IShoppHome() {
       </section>
 
       <footer className="footer">
-        <span>iShopp<span className="footer-dot">•</span></span>
+        <IShoppLogo className="footer-logo" />
         <span>Share More. Save More.</span>
       </footer>
     </main>
