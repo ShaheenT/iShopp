@@ -104,13 +104,31 @@ test.describe("API contracts", () => {
     expect(risk).toContain('"get_community_price_risk"');
   });
 
-  test("community evidence upload requires authentication and limits image input", () => {
-    const route = read("app/api/community/prices/evidence/route.ts");
+  test("community evidence upload is authenticated, image-only, size-limited and private", () => {
+    const route = read("app/api/community/evidence/route.ts");
     expect(route).toContain("supabase.auth.getUser()");
     expect(route).toContain("401");
-    expect(route).toContain("8 * 1024 * 1024");
+    expect(route).toContain("10 * 1024 * 1024");
+    expect(route).toContain("image/jpeg");
     expect(route).toContain("community-price-evidence");
+    expect(route).toContain("sourceHash");
     expect(route).toContain("evidence_file_required");
+  });
+
+  test("product search only exposes verified catalogue products", () => {
+    const route = read("app/api/products/search/route.ts");
+    expect(route).toContain("verification_status");
+    expect(route).toContain('"verified"');
+    expect(route).toContain("retailer_id");
+    expect(route).toContain("ilike");
+    expect(route).toContain("barcode");
+  });
+
+  test("branch lookup only exposes active retailer branches", () => {
+    const route = read("app/api/retailers/[retailerId]/branches/route.ts");
+    expect(route).toContain("z.string().uuid()");
+    expect(route).toContain("is_active");
+    expect(route).toContain("retailer_id");
   });
 
   test("fulfilment optimization does not accept commercial truth from clients", () => {
