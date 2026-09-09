@@ -30,7 +30,15 @@ describe("calculateBasketIntelligence", () => {
     expect(result.singleRetailer.retailerSubtotals[0].retailerName).toBe("Bravo");
   });
 
-  it("returns the practical strategy deterministically", () => {
+  it("uses the cheapest complete strategy within the store cap", () => {
+    const result = calculateBasketIntelligence(items, offers, 2);
+    expect(result.practical.total).toBe(72);
+    expect(result.practical.retailerCount).toBe(2);
+    expect(result.savingsVsSingleRetailer).toBe(13);
+    expect(result.savingsVsSplitMinimum).toBe(0);
+  });
+
+  it("reduces the practical strategy to one store when constrained", () => {
     const result = calculateBasketIntelligence(items, offers, 1);
     expect(result.practical.total).toBe(85);
     expect(result.practical.retailerCount).toBe(1);
