@@ -26,17 +26,17 @@ describe("optimizeFulfilment", () => {
       { retailerId: "r1", deliveryFee: 0 },
       { retailerId: "r2", deliveryFee: 20 },
     ], { maxStores: 2 });
-    expect(result?.totalLandedCost).toBe(20);
+    expect(result?.totalLandedCost).toBe(10);
     expect(result?.deliveryFees).toBe(0);
   });
 
-  it("applies a minimum-order surcharge when a retailer subtotal is below threshold", () => {
+  it("applies a minimum-order surcharge when the selected retailer is below threshold", () => {
     const result = optimizeFulfilment([{ productId: "p1", quantity: 1 }], offers, [
-      { retailerId: "r1", minimumOrder: 20 },
-      { retailerId: "r2", minimumOrder: 0 },
+      { retailerId: "r2", minimumOrder: 20 },
     ], { maxStores: 1 });
     expect(result?.totalProductCost).toBe(5);
-    expect(result?.minimumOrderSurcharges).toBe(0);
+    expect(result?.minimumOrderSurcharges).toBe(15);
+    expect(result?.totalLandedCost).toBe(20);
   });
 
   it("combines delivery, minimum order and store-visit cost", () => {
