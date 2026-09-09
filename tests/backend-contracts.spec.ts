@@ -29,6 +29,25 @@ test.describe("backend migration contracts", () => {
     expect(sql).toContain("grant execute on function public.submit_community_price");
   });
 
+  test("verified community prices exclude inactive or mismatched branches", () => {
+    const sql = read("supabase/migrations/0021_verified_community_price_scope.sql");
+    expect(sql).toContain("create or replace function public.get_verified_community_prices");
+    expect(sql).toContain("left join public.store_branches sb");
+    expect(sql).toContain("sb.retailer_id = cps.retailer_id");
+    expect(sql).toContain("sb.is_active");
+    expect(sql).toContain("cps.store_branch_id is null");
+  });
+
+  test("community risk signals use the same active commercial scope", () => {
+    const sql = read("supabase/migrations/0022_community_risk_scope.sql");
+    expect(sql).toContain("create or replace function public.get_community_price_risk");
+    expect(sql).toContain("left join public.store_branches sb");
+    expect(sql).toContain("sb.retailer_id = s.retailer_id");
+    expect(sql).toContain("sb.is_active");
+    expect(sql).toContain("s.store_branch_id = v_branch_id");
+    expect(sql).toContain("least(100, v_score)");
+  });
+
   test("action integrity validates branch-specific commercial facts", () => {
     const sql = read("supabase/migrations/0018_action_integrity.sql");
     expect(sql).toContain("create or replace function public.create_verified_shopping_plan");
