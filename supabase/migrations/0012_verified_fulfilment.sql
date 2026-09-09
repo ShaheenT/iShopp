@@ -26,7 +26,8 @@ create table public.fulfilment_rules (
   constraint fulfilment_rules_minimum_order_check check (minimum_order_value is null or minimum_order_value >= 0),
   constraint fulfilment_rules_dates_check check (ends_at is null or ends_at > starts_at),
   constraint fulfilment_rules_source_required check (source_url is not null or source_hash is not null),
-  constraint fulfilment_rules_currency_check check (currency ~ '^[A-Z]{3}$')
+  constraint fulfilment_rules_currency_check check (currency ~ '^[A-Z]{3}$'),
+  constraint fulfilment_rules_verified_at_check check (verification_status <> 'verified' or verified_at is not null)
 );
 
 -- Make the retailer/branch relationship part of the database contract.
@@ -61,9 +62,7 @@ create table public.fulfilment_evidence (
   extracted_data jsonb,
   storage_path text,
   created_at timestamptz not null default now(),
-  constraint fulfilment_evidence_source_required check (
-    source_url is not null or storage_path is not null
-  )
+  constraint fulfilment_evidence_source_required check (source_url is not null or storage_path is not null)
 );
 
 create unique index fulfilment_evidence_hash_unique
@@ -106,6 +105,30 @@ alter table public.fulfilment_rules
     fulfilment_mode with =,
     tstzrange(starts_at, coalesce(ends_at, 'infinity'::timestamptz), '[)') with &&
   ) where (verification_status = 'verified' and is_available = true);
+
+-- A rule cannot become trusted without captured/processed evidence.
+create or replace function public.require_fulfilment_evidence_for_verification()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.verification_status = 'verified'
+     and not exists (
+       select 1
+       from public.fulfilment_evidence fe
+       where fe.fulfilment_rule_id = new.id
+         and fe.status in ('captured', 'processed')
+     ) then
+    raise exception 'verified fulfilment rule requires evidence';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger fulfilment_rules_require_evidence
+before insert or update of verification_status on public.fulfilment_rules
+for each row execute function public.require_fulfilment_evidence_for_verification();
 
 -- Keep updated_at correct without exposing a public write path.
 create or replace function public.set_fulfilment_rules_updated_at()
@@ -158,10 +181,8 @@ as $$
     fe.id,
     fr.verified_at
   from public.shopping_basket_items bi
-  join public.shopping_baskets b on b.id = bi.basket_id
-    and b.user_id = auth.uid()
-  join public.products p on p.id = bi.product_id
-    and p.verification_status = 'verified'
+  join public.shopping_baskets b on b.id = bi.basket_id and b.user_id = auth.uid()
+  join public.products p on p.id = bi.product_id and p.verification_status = 'verified'
   join public.specials s on s.product_id = p.id
     and s.verification_status = 'verified'
     and s.starts_at <= now()
@@ -169,8 +190,7 @@ as $$
   join public.retailers r on r.id = s.retailer_id
     and r.status = 'active'
     and r.verification_status = 'verified'
-  left join public.store_branches sb on sb.id = s.store_branch_id
-    and sb.is_active = true
+  left join public.store_branches sb on sb.id = s.store_branch_id and sb.is_active = true
   join lateral (
     select fr0.*
     from public.fulfilment_rules fr0
