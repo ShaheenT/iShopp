@@ -131,15 +131,6 @@ test.describe("API contracts", () => {
     expect(route).toContain("retailer_id");
   });
 
-  test("verified price comparison is authenticated and server-sourced", () => {
-    const route = read("app/api/products/[productId]/compare/route.ts");
-    expect(route).toContain("z.string().uuid()");
-    expect(route).toContain("supabase.auth.getUser()");
-    expect(route).toContain("401");
-    expect(route).toContain('"compare_product_prices"');
-    expect(route).not.toContain("special_price:");
-  });
-
   test("fulfilment optimization does not accept commercial truth from clients", () => {
     const route = read("app/api/basket/[basketId]/fulfilment-optimize/route.ts");
     expect(route).toContain("maxStores");
@@ -155,5 +146,13 @@ test.describe("API contracts", () => {
     expect(route).toContain("get_basket_fulfilment_inputs");
     expect(route).toContain("create_verified_shopping_plan");
     expect(route).toContain("expiresAt");
+  });
+
+  test("basket savings uses authenticated verified basket inputs", () => {
+    const route = read("app/api/basket/[basketId]/savings/route.ts");
+    expect(route).toContain("z.string().uuid()");
+    expect(route).toContain("supabase.auth.getUser()");
+    expect(route).toContain("get_basket_intelligence_inputs");
+    expect(route).toContain("verified: true");
   });
 });
