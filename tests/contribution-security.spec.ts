@@ -14,13 +14,15 @@ test.describe("community contribution security", () => {
     expect(route).toContain("submit_community_price");
   });
 
-  test("evidence endpoint requires an authenticated user and restricts image types", async () => {
+  test("evidence endpoint requires an authenticated user and validates image signatures", async () => {
     const route = await readFile("app/api/community/evidence/route.ts", "utf8");
     expect(route).toContain("supabase.auth.getUser()");
     expect(route).toContain("image/jpeg");
     expect(route).toContain("image/png");
     expect(route).toContain("image/webp");
     expect(route).toContain("10 * 1024 * 1024");
+    expect(route).toContain("matchesSignature");
+    expect(route).toContain("evidence_signature_mismatch");
     expect(route).toContain("userData.user.id");
   });
 
