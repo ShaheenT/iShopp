@@ -6,7 +6,7 @@ import styles from "./savings-view.module.css";
 
 type Basket = { id: string; name: string; created_at: string; updated_at: string };
 type Savings = { currentCost: number; optimizedCost: number; savings: number; savingsPercent: number; currency: string; verified: boolean };
-type Optimization = { totalCost?: number; productCost?: number; deliveryCost?: number; storeVisitCost?: number; retailerCount?: number; currency?: string; stores?: Array<Record<string, unknown>> };
+type Optimization = { totalCost?: number; totalLandedCost?: number; productCost?: number; totalProductCost?: number; deliveryCost?: number; deliveryFees?: number; storeVisitCost?: number; retailerCount?: number; stores?: Array<Record<string, unknown>> };
 
 export default function SavingsView({ basket }: { basket: Basket }) {
   const [savings, setSavings] = useState<Savings | null>(null);
@@ -42,7 +42,7 @@ export default function SavingsView({ basket }: { basket: Basket }) {
     finally { setOptimizing(false); }
   }
 
-  const currency = savings?.currency ?? optimization?.currency ?? "ZAR";
+  const currency = savings?.currency ?? "ZAR";
   const money = (value: number | undefined | null) => value == null ? "—" : `${currency} ${value.toFixed(2)}`;
 
   return (
@@ -58,7 +58,7 @@ export default function SavingsView({ basket }: { basket: Basket }) {
         <div><p className={styles.eyebrow}>NEXT DECISION</p><h2>Price is only<br />the beginning.</h2><p>Now account for practical fulfilment: which retailers can cover the basket, how many store visits are needed, and what verified delivery rules apply.</p></div>
         <div className={styles.action}><button type="button" onClick={optimize} disabled={optimizing || loading}>{optimizing ? "Optimising…" : "Optimise my basket →"}</button><small>Uses a maximum of 2 stores and no assumed visit cost.</small></div>
       </section>
-      {optimization && <section className={styles.result}><div className={styles.resultHead}><div><p className={styles.eyebrow}>PRACTICAL PLAN</p><h2>Best verified route.</h2></div><strong>{money(optimization.totalCost)}</strong></div><div className={styles.metrics}><div><span>PRODUCTS</span><strong>{money(optimization.productCost)}</strong></div><div><span>DELIVERY</span><strong>{money(optimization.deliveryCost)}</strong></div><div><span>STORES</span><strong>{optimization.retailerCount ?? "—"}</strong></div></div></section>}
+      {optimization && <section className={styles.result}><div className={styles.resultHead}><div><p className={styles.eyebrow}>PRACTICAL PLAN</p><h2>Best verified route.</h2></div><strong>{money(optimization.totalLandedCost ?? optimization.totalCost)}</strong></div><div className={styles.metrics}><div><span>PRODUCTS</span><strong>{money(optimization.totalProductCost ?? optimization.productCost)}</strong></div><div><span>DELIVERY</span><strong>{money(optimization.deliveryFees ?? optimization.deliveryCost)}</strong></div><div><span>STORES</span><strong>{optimization.retailerCount ?? "—"}</strong></div></div><a className={styles.planLink} href={`/basket/${basket.id}/plan`}>Build verified shopping plan →</a></section>}
       <footer className={styles.footer}>Verified commercial data only. iShopp does not invent savings.</footer>
     </main>
   );
