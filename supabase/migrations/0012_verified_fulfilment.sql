@@ -30,7 +30,6 @@ create table public.fulfilment_rules (
   constraint fulfilment_rules_verified_at_check check (verification_status <> 'verified' or verified_at is not null)
 );
 
--- Make the retailer/branch relationship part of the database contract.
 create unique index store_branches_id_retailer_unique
   on public.store_branches(id, retailer_id);
 
@@ -95,18 +94,17 @@ revoke all on table public.fulfilment_rules from anon, authenticated;
 revoke all on table public.fulfilment_evidence from anon, authenticated;
 revoke all on table public.fulfilment_verification_events from anon, authenticated;
 
--- No two verified, available rules may overlap within the same scope/mode.
 create extension if not exists btree_gist;
 alter table public.fulfilment_rules
   add constraint fulfilment_rules_no_verified_overlap
   exclude using gist (
     retailer_id with =,
-    coalesce(store_branch_id, '00000000-0000-0000-0000-000000000000'::uuid) with =,
+    (coalesce(store_branch_id, '00000000-0000-0000-0000-000000000000'::uuid)) with =,
     fulfilment_mode with =,
-    tstzrange(starts_at, coalesce(ends_at, 'infinity'::timestamptz), '[)') with &&
+    (tstzrange(starts_at, coalesce(ends_at, 'infinity'::timestamptz), '[)')) with &&
   ) where (verification_status = 'verified' and is_available = true);
 
--- A rule cannot become trusted without captured/processed evidence.
+-- Verification is a state transition: evidence must already exist before a rule can become verified.
 create or replace function public.require_fulfilment_evidence_for_verification()
 returns trigger
 language plpgsql
@@ -130,7 +128,33 @@ create trigger fulfilment_rules_require_evidence
 before insert or update of verification_status on public.fulfilment_rules
 for each row execute function public.require_fulfilment_evidence_for_verification();
 
--- Keep updated_at correct without exposing a public write path.
+-- A verified rule must never be left without usable evidence.
+create or replace function public.protect_verified_fulfilment_evidence()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if exists (
+    select 1 from public.fulfilment_rules fr
+    where fr.id = old.fulfilment_rule_id
+      and fr.verification_status = 'verified'
+  ) and not exists (
+    select 1 from public.fulfilment_evidence fe
+    where fe.fulfilment_rule_id = old.fulfilment_rule_id
+      and fe.id <> old.id
+      and fe.status in ('captured', 'processed')
+  ) then
+    raise exception 'cannot remove the last usable evidence from a verified fulfilment rule';
+  end if;
+  return old;
+end;
+$$;
+
+create trigger fulfilment_evidence_protect_verified_rule
+before delete or update of status on public.fulfilment_evidence
+for each row execute function public.protect_verified_fulfilment_evidence();
+
 create or replace function public.set_fulfilment_rules_updated_at()
 returns trigger
 language plpgsql
@@ -146,7 +170,7 @@ create trigger fulfilment_rules_updated_at
 before update on public.fulfilment_rules
 for each row execute function public.set_fulfilment_rules_updated_at();
 
--- Return the currently effective verified delivery rule for each retailer/branch offer.
+-- Return only currently effective verified delivery rules with usable evidence.
 -- Branch-specific rules take precedence over retailer-wide rules.
 create or replace function public.get_basket_fulfilment_inputs(p_basket_id uuid)
 returns table (
@@ -201,14 +225,13 @@ as $$
       and fr0.verification_status = 'verified'
       and fr0.starts_at <= now()
       and (fr0.ends_at is null or fr0.ends_at > now())
-      and (s.store_branch_id is null or fr0.store_branch_id = s.store_branch_id or fr0.store_branch_id is null)
     order by (fr0.store_branch_id is not null) desc,
              fr0.starts_at desc,
              fr0.verified_at desc nulls last,
              fr0.id asc
     limit 1
   ) fr on true
-  left join lateral (
+  join lateral (
     select fe0.id
     from public.fulfilment_evidence fe0
     where fe0.fulfilment_rule_id = fr.id
