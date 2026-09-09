@@ -13,20 +13,23 @@ export default function ShoppingPlanView({ basket }: { basket: Basket }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
   async function createPlan() {
     if (loading) return;
+    const key = idempotencyKey ?? crypto.randomUUID();
+    setIdempotencyKey(key);
     setLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/basket/${basket.id}/plan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
         body: JSON.stringify({ maxStores: 2, storeVisitCost: 0 }),
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.error === "basket_not_fully_available" ? "There is not enough verified fulfilment coverage to build a complete plan yet." : payload.error === "verified_fulfilment_rule_missing" ? "A verified fulfilment rule is missing for one of the selected offers." : payload.error === "shopping_plan_creation_failed" ? "The plan could not be committed. The verified commercial data may have changed." : payload.error ?? "The shopping plan is unavailable.");
+        throw new Error(payload.error === "basket_not_fully_available" ? "There is not enough verified fulfilment coverage to build a complete plan yet." : payload.error === "verified_fulfilment_rule_missing" ? "A verified fulfilment rule is missing for one of the selected offers." : payload.error === "idempotency_key_reused" ? "This plan request is already associated with another basket." : payload.error === "shopping_plan_creation_failed" ? "The plan could not be committed. The verified commercial data may have changed." : payload.error ?? "The shopping plan is unavailable.");
       }
       setPlan(payload.data);
     } catch (caught) {
@@ -66,7 +69,7 @@ export default function ShoppingPlanView({ basket }: { basket: Basket }) {
             <strong>Verified</strong>
           </div>
           <button type="button" onClick={createPlan} disabled={loading}>{loading ? "Building your plan…" : "Build my shopping plan →"}</button>
-          <small>The plan is checked again by the server before it is committed.</small>
+          <small>The request is retry-safe, and the server checks verified commercial data again before committing it.</small>
         </section>
       )}
 
