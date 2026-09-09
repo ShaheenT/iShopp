@@ -9,11 +9,6 @@ const basketIdSchema = z.string().uuid();
 const bodySchema = z.object({
   maxStores: z.number().int().min(1).max(5).default(2),
   storeVisitCost: z.number().finite().min(0).max(1000).default(0),
-  fulfilment: z.array(z.object({
-    retailerId: z.string().uuid(),
-    deliveryFee: z.number().finite().min(0).max(10000).default(0),
-    minimumOrder: z.number().finite().min(0).max(100000).default(0),
-  })).max(50).default([]),
 });
 
 export const dynamic = "force-dynamic";
@@ -43,7 +38,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
   const items: SavingsItem[] = (basketItems ?? []).map((item) => ({ productId: item.product_id, quantity: item.quantity }));
   const { data: inputs, error: inputError } = await supabase.rpc("get_basket_intelligence_inputs", { p_basket_id: parsedBasketId.data });
   if (inputError) {
-    console.error("fulfilment optimization RPC failed", inputError);
+    console.error("fulfilment optimization offer RPC failed", inputError);
     return NextResponse.json({ error: "basket_optimization_unavailable" }, { status: 500 });
   }
 
@@ -58,7 +53,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
     currency: row.currency,
   }));
 
-  const rules: FulfilmentRule[] = parsedBody.data.fulfilment;
+  const { data: fulfilmentInputs, error: fulfilmentError } = await supabase.rpc("get_basket_fulfilment_inputs", { p_basket_id: parsedBasketId.data });
+  if (fulfilmentError) {
+    console.error("fulfilment rules RPC failed", fulfilmentError);
+    return NextResponse.json({ error: "fulfilment_rules_unavailable" }, { status: 500 });
+  }
+
+  const rules: FulfilmentRule[] = (fulfilmentInputs ?? []).map((row) => ({
+    retailerId: row.retailer_id,
+    branchId: row.branch_id,
+    fulfilmentMode: row.fulfilment_mode,
+    isAvailable: row.is_available,
+    deliveryFee: Number(row.delivery_fee),
+    minimumOrderValue: row.minimum_order_value == null ? null : Number(row.minimum_order_value),
+    currency: row.currency,
+    fulfilmentRuleId: row.fulfilment_rule_id,
+  }));
+
   const result = optimizeFulfilment(items, offers, rules, parsedBody.data);
   if (!result) return NextResponse.json({ error: "basket_not_fully_available" }, { status: 409 });
 
@@ -68,7 +79,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
       basketId: parsedBasketId.data,
       maxStores: parsedBody.data.maxStores,
       storeVisitCost: parsedBody.data.storeVisitCost,
-      fulfilmentPricingMode: "scenario",
+      fulfilmentPricingMode: "verified",
+      fulfilmentRulesSource: "supabase_verified_effective_rules",
     },
   });
 }
