@@ -18,6 +18,17 @@ test.describe("backend migration contracts", () => {
     expect(trust).not.toContain("grant execute on function public.recalculate_community_trust(uuid) to authenticated");
   });
 
+  test("community submissions require trusted catalogue entities", () => {
+    const sql = read("supabase/migrations/0020_community_submission_integrity.sql");
+    expect(sql).toContain("verified product required");
+    expect(sql).toContain("verified active retailer required");
+    expect(sql).toContain("active retailer branch required");
+    expect(sql).toContain("observed price must be greater than zero");
+    expect(sql).toContain("observed time cannot be in the future");
+    expect(sql).toContain("revoke all on function public.submit_community_price");
+    expect(sql).toContain("grant execute on function public.submit_community_price");
+  });
+
   test("action integrity validates branch-specific commercial facts", () => {
     const sql = read("supabase/migrations/0018_action_integrity.sql");
     expect(sql).toContain("create or replace function public.create_verified_shopping_plan");
