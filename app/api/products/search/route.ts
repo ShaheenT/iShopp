@@ -17,6 +17,10 @@ type ProductSearchResult = {
   retailers: { id: string; name: string } | null;
 };
 
+type ProductSearchRow = Omit<ProductSearchResult, "retailers"> & {
+  retailers: { id: string; name: string }[];
+};
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -47,8 +51,9 @@ export async function GET(request: Request) {
   }
 
   const products = new Map<string, ProductSearchResult>();
-  for (const item of [...(nameResult.data ?? []), ...(brandResult.data ?? []), ...(barcodeResult.data ?? [])]) {
-    products.set(item.id, item as ProductSearchResult);
+  for (const raw of [...(nameResult.data ?? []), ...(brandResult.data ?? []), ...(barcodeResult.data ?? [])]) {
+    const item = raw as ProductSearchRow;
+    products.set(item.id, { ...item, retailers: item.retailers[0] ?? null });
   }
 
   return NextResponse.json({ data: Array.from(products.values()).slice(0, 12) });
