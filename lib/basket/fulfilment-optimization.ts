@@ -31,6 +31,15 @@ export type FulfilmentOptimization = {
   }>;
 };
 
+type FulfilmentCandidate = {
+  allocations: FulfilmentOptimization['allocations'];
+  productCost: number;
+  retailers: string[];
+  landedCost: number;
+  fees: number;
+  surcharges: number;
+};
+
 const round = (value: number) => Number(value.toFixed(2));
 
 function ruleKey(retailerId: string, branchId?: string | null) {
@@ -64,14 +73,7 @@ export function optimizeFulfilment(
   }
 
   const retailerIds = [...new Set(validOffers.map((offer) => offer.retailerId))].sort();
-  let best: {
-    allocations: FulfilmentOptimization['allocations'];
-    productCost: number;
-    retailers: string[];
-    landedCost: number;
-    fees: number;
-    surcharges: number;
-  } | null = null;
+  let best: FulfilmentCandidate | null = null;
 
   function getRule(offer: SavingsOffer) {
     return ruleMap.get(ruleKey(offer.retailerId, offer.branchId)) ?? ruleMap.get(ruleKey(offer.retailerId, null));
@@ -112,7 +114,7 @@ export function optimizeFulfilment(
     const productCost = round(allocations.reduce((sum, item) => sum + item.lineTotal, 0));
     const actualRetailers = [...new Set(allocations.map((item) => item.retailerId))].sort();
     const landedCost = round(productCost + fees + actualRetailers.length * storeVisitCost);
-    const candidate = { allocations, productCost, retailers: actualRetailers, landedCost, fees: round(fees), surcharges: 0 };
+    const candidate: FulfilmentCandidate = { allocations, productCost, retailers: actualRetailers, landedCost, fees: round(fees), surcharges: 0 };
     if (!best || landedCost < best.landedCost || (landedCost === best.landedCost && (actualRetailers.length < best.retailers.length || (actualRetailers.length === best.retailers.length && actualRetailers.join(',') < best.retailers.join(','))))) best = candidate;
   }
 
@@ -122,11 +124,13 @@ export function optimizeFulfilment(
     for (let index = start; index < retailerIds.length; index++) combinations(index + 1, [...chosen, retailerIds[index]]);
   }
   combinations(0, []);
-  if (!best) return null;
 
-  const retailerSubtotals = [...new Map(best.allocations.map((item) => [ruleKey(item.retailerId, item.branchId), item])).values()]
+  const winner = best;
+  if (!winner) return null;
+
+  const retailerSubtotals = [...new Map(winner.allocations.map((item) => [ruleKey(item.retailerId, item.branchId), item])).values()]
     .map((item) => {
-      const subtotal = round(best!.allocations.filter((allocation) => ruleKey(allocation.retailerId, allocation.branchId) === ruleKey(item.retailerId, item.branchId)).reduce((sum, allocation) => sum + allocation.lineTotal, 0));
+      const subtotal = round(winner.allocations.filter((allocation) => ruleKey(allocation.retailerId, allocation.branchId) === ruleKey(item.retailerId, item.branchId)).reduce((sum, allocation) => sum + allocation.lineTotal, 0));
       const rule = getRule(item);
       const deliveryFee = rule?.deliveryFee ?? 0;
       const minimumOrder = rule?.minimumOrderValue ?? 0;
@@ -144,13 +148,13 @@ export function optimizeFulfilment(
     .sort((a, b) => a.retailerName.localeCompare(b.retailerName) || a.retailerId.localeCompare(b.retailerId));
 
   return {
-    totalProductCost: best.productCost,
-    deliveryFees: best.fees,
-    storeVisitCost: round(best.retailers.length * storeVisitCost),
-    minimumOrderSurcharges: best.surcharges,
-    totalLandedCost: best.landedCost,
-    retailerCount: best.retailers.length,
-    allocations: best.allocations,
+    totalProductCost: winner.productCost,
+    deliveryFees: winner.fees,
+    storeVisitCost: round(winner.retailers.length * storeVisitCost),
+    minimumOrderSurcharges: winner.surcharges,
+    totalLandedCost: winner.landedCost,
+    retailerCount: winner.retailers.length,
+    allocations: winner.allocations,
     retailerSubtotals,
   };
 }
