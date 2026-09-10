@@ -7,6 +7,17 @@ import { createClient } from "@/lib/supabase/server";
 const basketIdSchema = z.string().uuid();
 const maxStoresSchema = z.coerce.number().int().min(1).max(5).default(2);
 
+type IntelligenceInputRow = {
+  product_id: string;
+  retailer_id: string;
+  retailer_name: string;
+  branch_id: string | null;
+  branch_name: string | null;
+  special_id: string;
+  special_price: number | string;
+  currency: string;
+};
+
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -56,7 +67,7 @@ export async function GET(
     return NextResponse.json({ error: "basket_intelligence_unavailable" }, { status: 500 });
   }
 
-  const offers: BasketOffer[] = (inputs ?? []).map((row) => ({
+  const offers: BasketOffer[] = (inputs as IntelligenceInputRow[] | null ?? []).map((row) => ({
     productId: row.product_id,
     retailerId: row.retailer_id,
     retailerName: row.retailer_name,
