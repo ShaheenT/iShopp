@@ -4,6 +4,21 @@ import BasketView from "@/app/components/basket-view";
 
 export const dynamic = "force-dynamic";
 
+type BasketItemRow = {
+  id: string;
+  product_id: string;
+  quantity: number;
+  created_at: string;
+  updated_at: string;
+  products: {
+    id: string;
+    name: string;
+    brand: string | null;
+    unit: string | null;
+    image_url: string | null;
+  }[];
+};
+
 export default async function BasketPage({ params }: { params: Promise<{ basketId: string }> }) {
   const { basketId } = await params;
   const supabase = await createClient();
@@ -18,11 +33,16 @@ export default async function BasketPage({ params }: { params: Promise<{ basketI
     .maybeSingle();
   if (!basket) notFound();
 
-  const { data: items } = await supabase
+  const { data: rawItems } = await supabase
     .from("shopping_basket_items")
     .select("id,product_id,quantity,created_at,updated_at,products(id,name,brand,unit,image_url)")
     .eq("basket_id", basketId)
     .order("created_at");
 
-  return <BasketView basket={basket} items={items ?? []} />;
+  const items = (rawItems as BasketItemRow[] | null ?? []).map((item) => ({
+    ...item,
+    products: item.products[0] ?? null,
+  }));
+
+  return <BasketView basket={basket} items={items} />;
 }
