@@ -28,6 +28,13 @@ export type SavingsOptimization = {
   }>;
 };
 
+type SavingsCandidate = {
+  allocations: SavingsAllocation[];
+  productCost: number;
+  retailerIds: string[];
+  landedCost: number;
+};
+
 function round(value: number) {
   return Number(value.toFixed(2));
 }
@@ -45,7 +52,7 @@ export function optimizeSavings(
   const validItems = items.filter((item) => Number.isInteger(item.quantity) && item.quantity > 0);
   const validOffers = offers.filter((offer) => Number.isFinite(offer.unitPrice) && offer.unitPrice >= 0);
   const retailerIds = [...new Set(validOffers.map((offer) => offer.retailerId))].sort();
-  let best: { allocations: SavingsAllocation[]; productCost: number; retailerIds: string[]; landedCost: number } | null = null;
+  let best: SavingsCandidate | null = null;
 
   function evaluate(selected: string[]) {
     const allocations: SavingsAllocation[] = [];
@@ -59,7 +66,7 @@ export function optimizeSavings(
     const productCost = round(allocations.reduce((sum, item) => sum + item.lineTotal, 0));
     const actualRetailers = [...new Set(allocations.map((item) => item.retailerId))].sort();
     const landedCost = round(productCost + actualRetailers.length * storeVisitCost);
-    const candidate = { allocations, productCost, retailerIds: actualRetailers, landedCost };
+    const candidate: SavingsCandidate = { allocations, productCost, retailerIds: actualRetailers, landedCost };
     if (!best || landedCost < best.landedCost || (landedCost === best.landedCost && (actualRetailers.length < best.retailerIds.length || (actualRetailers.length === best.retailerIds.length && actualRetailers.join(",") < best.retailerIds.join(","))))) best = candidate;
   }
 
@@ -69,10 +76,12 @@ export function optimizeSavings(
     for (let index = start; index < retailerIds.length; index++) combinations(index + 1, [...chosen, retailerIds[index]]);
   }
   combinations(0, []);
-  if (!best) return null;
+
+  const winner = best as SavingsCandidate | null;
+  if (!winner) return null;
 
   const subtotalMap = new Map<string, { retailerId: string; retailerName: string; subtotal: number }>();
-  for (const item of best.allocations) {
+  for (const item of winner.allocations) {
     const existing = subtotalMap.get(item.retailerId);
     if (existing) existing.subtotal = round(existing.subtotal + item.lineTotal);
     else subtotalMap.set(item.retailerId, { retailerId: item.retailerId, retailerName: item.retailerName, subtotal: item.lineTotal });
@@ -80,11 +89,11 @@ export function optimizeSavings(
   const retailerSubtotals = [...subtotalMap.values()].sort((a, b) => a.retailerName.localeCompare(b.retailerName)).map((row) => ({ ...row, visitCost: storeVisitCost, landedSubtotal: round(row.subtotal + storeVisitCost) }));
 
   return {
-    totalProductCost: best.productCost,
-    storeVisitCost: round(best.retailerIds.length * storeVisitCost),
-    totalLandedCost: best.landedCost,
-    retailerCount: best.retailerIds.length,
-    allocations: best.allocations,
+    totalProductCost: winner.productCost,
+    storeVisitCost: round(winner.retailerIds.length * storeVisitCost),
+    totalLandedCost: winner.landedCost,
+    retailerCount: winner.retailerIds.length,
+    allocations: winner.allocations,
     retailerSubtotals,
   };
 }
