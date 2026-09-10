@@ -10,6 +10,17 @@ const querySchema = z.object({
   storeVisitCost: z.coerce.number().finite().min(0).max(1000).default(0),
 });
 
+type IntelligenceInputRow = {
+  product_id: string;
+  retailer_id: string;
+  retailer_name: string;
+  branch_id: string | null;
+  branch_name: string | null;
+  special_id: string;
+  special_price: number | string;
+  currency: string;
+};
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ basketId: string }> }) {
@@ -41,7 +52,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ bask
     return NextResponse.json({ error: "basket_optimization_unavailable" }, { status: 500 });
   }
 
-  const offers: SavingsOffer[] = (inputs ?? []).map((row) => ({
+  const offers: SavingsOffer[] = (inputs as IntelligenceInputRow[] | null ?? []).map((row) => ({
     productId: row.product_id,
     retailerId: row.retailer_id,
     retailerName: row.retailer_name,
