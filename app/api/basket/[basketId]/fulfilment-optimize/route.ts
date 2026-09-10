@@ -11,6 +11,28 @@ const bodySchema = z.object({
   storeVisitCost: z.number().finite().min(0).max(1000).default(0),
 });
 
+type IntelligenceInputRow = {
+  product_id: string;
+  retailer_id: string;
+  retailer_name: string;
+  branch_id: string | null;
+  branch_name: string | null;
+  special_id: string;
+  special_price: number | string;
+  currency: string;
+};
+
+type FulfilmentInputRow = {
+  retailer_id: string;
+  branch_id: string | null;
+  fulfilment_mode: FulfilmentRule["fulfilmentMode"];
+  is_available: boolean;
+  delivery_fee: number | string;
+  minimum_order_value: number | string | null;
+  currency: string;
+  fulfilment_rule_id: string;
+};
+
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ basketId: string }> }) {
@@ -42,7 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
     return NextResponse.json({ error: "basket_optimization_unavailable" }, { status: 500 });
   }
 
-  const offers: SavingsOffer[] = (inputs ?? []).map((row) => ({
+  const offers: SavingsOffer[] = (inputs as IntelligenceInputRow[] | null ?? []).map((row) => ({
     productId: row.product_id,
     retailerId: row.retailer_id,
     retailerName: row.retailer_name,
@@ -59,7 +81,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bas
     return NextResponse.json({ error: "fulfilment_rules_unavailable" }, { status: 500 });
   }
 
-  const rules: FulfilmentRule[] = (fulfilmentInputs ?? []).map((row) => ({
+  const rules: FulfilmentRule[] = (fulfilmentInputs as FulfilmentInputRow[] | null ?? []).map((row) => ({
     retailerId: row.retailer_id,
     branchId: row.branch_id,
     fulfilmentMode: row.fulfilment_mode,
