@@ -106,7 +106,6 @@ export function optimizeFulfilment(
     let fees = 0;
     for (const row of fulfilmentMap.values()) {
       const minimumOrder = row.rule.minimumOrderValue ?? 0;
-      // A minimum order is a hard commercial constraint, not a synthetic surcharge.
       if (row.subtotal < minimumOrder) return;
       fees += row.rule.deliveryFee;
     }
@@ -125,12 +124,18 @@ export function optimizeFulfilment(
   }
   combinations(0, []);
 
-  const winner = best;
+  const winner = best as FulfilmentCandidate | null;
   if (!winner) return null;
 
-  const retailerSubtotals = [...new Map(winner.allocations.map((item) => [ruleKey(item.retailerId, item.branchId), item])).values()]
-    .map((item) => {
-      const subtotal = round(winner.allocations.filter((allocation) => ruleKey(allocation.retailerId, allocation.branchId) === ruleKey(item.retailerId, item.branchId)).reduce((sum, allocation) => sum + allocation.lineTotal, 0));
+  const allocationGroups = new Map<string, FulfilmentOptimization['allocations'][number]>();
+  for (const allocation of winner.allocations) {
+    const key = ruleKey(allocation.retailerId, allocation.branchId);
+    if (!allocationGroups.has(key)) allocationGroups.set(key, allocation);
+  }
+
+  const retailerSubtotals = [...allocationGroups.entries()]
+    .map(([key, item]) => {
+      const subtotal = round(winner.allocations.filter((allocation) => ruleKey(allocation.retailerId, allocation.branchId) === key).reduce((sum, allocation) => sum + allocation.lineTotal, 0));
       const rule = getRule(item);
       const deliveryFee = rule?.deliveryFee ?? 0;
       const minimumOrder = rule?.minimumOrderValue ?? 0;
